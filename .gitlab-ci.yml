@@ -1,0 +1,87 @@
+image: node:alpine
+cache:
+  paths:
+    - node_modules/
+    - build/
+stages:
+  - install
+  - build
+  - test
+  - publish
+
+variables:
+  TAG_LATEST: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:latest
+  TAG_COMMIT: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA
+
+install-dependancies:
+  stage: install
+  script:
+    - echo "Installing dependancies"
+    - yarn install
+  artifacts:
+    paths:
+      - node_modules/
+  only:
+    - main
+    - merge_requests
+
+build-code:
+  stage: build
+  script:
+    - echo "starting to build"
+    - yarn run build
+  only:
+    - main
+    - merge_requests
+
+type-test:
+  stage: test
+  script:
+    - echo "Testing & checking types"
+    - yarn run check-types
+  only:
+    - main
+    - merge_requests
+
+lint-test:
+  stage: test
+  script:
+    - echo "Running unit test"
+    - yarn run lint
+  only:
+    - main
+    - merge_requests
+
+prettier-test:
+  stage: test
+  script:
+    - echo "Starting Prettier test"
+    - yarn run prettier-format
+  only:
+    - main
+    - merge_requests
+
+code-test:
+  stage: test
+  script:
+    - yarn run test
+  artifacts:
+    paths:
+      - coverage/
+  only:
+    - main
+    - merge_requests
+
+publish:
+  image: docker:stable
+  stage: publish
+  services:
+    - docker:dind
+  script:
+    - echo "Starting to build"
+    - docker build -t $TAG_COMMIT -t $TAG_LATEST .
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - docker push $TAG_COMMIT
+    - docker push $TAG_LATEST
+  only:
+    - main
